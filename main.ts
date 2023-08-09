@@ -297,7 +297,12 @@ export default class VimrcPlugin extends Plugin {
 							// Have to do this because "vim-command-done" event doesn't actually work properly, or something.
 							this.customVimKeybinds[split[1]] = true
 						}
-						this.codeMirrorVimObject.handleEx(cmEditor, line);
+
+						if (split[2] === 'action' && split[3] === 'obcommand') {
+							this.codeMirrorVimObject.mapCommand(split[1], 'action', split[3], { command: split[4] });
+						} else {
+							this.codeMirrorVimObject.handleEx(cmEditor, line);
+						}
 					}
 				}.bind(this) // Faster than an arrow function. https://stackoverflow.com/questions/50375440/binding-vs-arrow-function-for-react-onclick-event
 			)
@@ -402,31 +407,15 @@ export default class VimrcPlugin extends Plugin {
 	}
 
 	defineObCommand(vimObject: any) {
-		vimObject.defineEx('obcommand', '', async (cm: any, params: any) => {
+		vimObject.defineAction('obcommand', async (cm: any, { command }) => {
 			const availableCommands = (this.app as any).commands.commands;
-			if (!params?.args?.length || params.args.length != 1) {
+			if (!command) {
 				console.log(`Available commands: ${Object.keys(availableCommands).join('\n')}`)
 				throw new Error(`obcommand requires exactly 1 parameter`);
 			}
-			let view = this.getActiveView();
-			let editor = view.editor;
-			const command = params.args[0];
-			if (command in availableCommands) {
-				let callback = availableCommands[command].callback;
-				let checkCallback = availableCommands[command].checkCallback;
-				let editorCallback = availableCommands[command].editorCallback;
-				let editorCheckCallback = availableCommands[command].editorCheckCallback;
-				if (editorCheckCallback)
-					editorCheckCallback(false, editor, view);
-				else if (editorCallback)
-					editorCallback(editor, view);
-				else if (checkCallback)
-					checkCallback(false);
-				else if (callback)
-					callback();
-				else
-					throw new Error(`Command ${command} doesn't have an Obsidian callback`);
-			} else
+			if (command in availableCommands)
+				this.app.commands.executeCommandById(command);
+			else
 				throw new Error(`Command ${command} was not found, try 'obcommand' with no params to see in the developer console what's available`);
 		});
 	}
